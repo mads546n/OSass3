@@ -7,6 +7,7 @@
 
 #include "aq.h"
 #include <stdlib.h>
+#include <stdio.h>
 #include <pthread.h>
 
 typedef struct MessageNode {
@@ -111,7 +112,11 @@ int aq_recv(AlarmQueue aq, void * * msg) {
     *msg = queue->alarm_message;    // stores the alarm-message in msg
     queue->alarm_message = NULL;    // clear alarm-message from queue
     queue->has_alarm = 0;   // reset to 0 
+    queue->message_count--;
+
     pthread_cond_signal(&queue->space_available);    // signal space for another alarm
+    pthread_mutex_unlock(&queue->lock);
+    return AQ_ALARM;   // return AQ_ALARM if an alarm message is received
   } else {
     MessageNode *node = queue->normal_head;   // dequeue first normal message
     *msg = node->message;   // assign message node as msg in function
@@ -121,13 +126,11 @@ int aq_recv(AlarmQueue aq, void * * msg) {
       queue->normal_tail = NULL;    // if normal_head becomes NULL, so does normal_tail
     }
     free(node);
+    queue->message_count--;   // decrement after receiving a message
+    pthread_mutex_unlock(&queue->lock);
+    return AQ_NORMAL;   // return accordingly to if a message is received 
+    //return AQ_NOT_IMPL;
   } 
-
-  //return AQ_NO_MSG;   // if no messages in the queue
-  queue->message_count--;   // decrement after receiving a message
-  pthread_mutex_unlock(&queue->lock);
-  return queue->has_alarm ? AQ_ALARM : AQ_NORMAL;   // return accordingly to if a message is received 
-  //return AQ_NOT_IMPL;
 }
 
 int aq_size(AlarmQueue aq) {
