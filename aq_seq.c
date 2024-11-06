@@ -168,5 +168,3 @@ void aq_destroy(AlarmQueue aq) {
 
   free(queue);    // frees queue 
 }
-
-

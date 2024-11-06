@@ -25,6 +25,7 @@ typedef struct {
   pthread_mutex_t lock;
   pthread_cond_t not_empty;
   pthread_cond_t space_available;
+
 } AlarmQueueStruct;
 
 AlarmQueue aq_create( ) {
@@ -68,12 +69,16 @@ int aq_send( AlarmQueue aq, void * msg, MsgKind k){
   pthread_mutex_lock(&queue->lock);
 
   if (k == AQ_ALARM) {
+    printf("Producer attempting to send an ALARM message...\n");
     while (queue->has_alarm) {   // no room for another message
+      printf("Producer blocked, waiting for space to send ALARM message...\n");
       pthread_cond_wait(&queue->space_available, &queue->lock);
+      printf("Producer unblocked, attempting to send ALARM message again...\n");
     }
 
     queue->alarm_message = msg;   // stores message
-    queue->has_alarm = 1;   // sets flag to 1
+    queue->has_alarm = 1;   // sets flag to 1 (alarm is present)
+    printf("Producer sent ALARM message successfully.\n");
 
   } else if (k == AQ_NORMAL) {
     MessageNode *new_node =(MessageNode *)malloc(sizeof(MessageNode));
@@ -90,8 +95,8 @@ int aq_send( AlarmQueue aq, void * msg, MsgKind k){
       queue->normal_head = new_node; 
     }
     queue->normal_tail = new_node;
+    queue->message_count++;   // increment counter regardless of type
   }
-  queue->message_count++;   // increment counter regardless of type
   pthread_cond_signal(&queue->not_empty);   // signal to indicate if there's a new message to receive
   pthread_mutex_unlock(&queue->lock);
 
@@ -104,19 +109,22 @@ int aq_recv(AlarmQueue aq, void * * msg) {
 
   pthread_mutex_lock(&queue->lock);
 
-  while (queue->message_count == 0) {
+  while (queue->message_count == 0 && !queue->has_alarm) {
     pthread_cond_wait(&queue->not_empty, &queue->lock);
   }
 
   if (queue->has_alarm) {
     *msg = queue->alarm_message;    // stores the alarm-message in msg
     queue->alarm_message = NULL;    // clear alarm-message from queue
-    queue->has_alarm = 0;   // reset to 0 
-    queue->message_count--;
+    queue->has_alarm = 0;   // clear flag after processing alarm
+    //queue->message_count--;
 
-    pthread_cond_signal(&queue->space_available);    // signal space for another alarm
+    printf("Consumer received ALARM message, signaling that space is available for another ALARM...\n");
+
+    pthread_cond_signal(&queue->space_available);   // signal space for another alarm
     pthread_mutex_unlock(&queue->lock);
     return AQ_ALARM;   // return AQ_ALARM if an alarm message is received
+ 
   } else {
     MessageNode *node = queue->normal_head;   // dequeue first normal message
     *msg = node->message;   // assign message node as msg in function
@@ -130,7 +138,7 @@ int aq_recv(AlarmQueue aq, void * * msg) {
     pthread_mutex_unlock(&queue->lock);
     return AQ_NORMAL;   // return accordingly to if a message is received 
     //return AQ_NOT_IMPL;
-  } 
+  }
 }
 
 int aq_size(AlarmQueue aq) {
@@ -145,6 +153,7 @@ int aq_size(AlarmQueue aq) {
 int aq_alarms( AlarmQueue aq) {
   AlarmQueueStruct *queue = (AlarmQueueStruct *)aq;
   pthread_mutex_lock(&queue->lock);
+  int size = queue->message_count;
   int has_alarm = queue->has_alarm;
   pthread_mutex_unlock(&queue->lock);
   return has_alarm;    // returns 1 if alarm message is present, 0 otherwise
@@ -167,6 +176,5 @@ void aq_destroy(AlarmQueue aq) {
 
   free(queue);    // frees queue 
 }
-
 
 
