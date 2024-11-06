@@ -63,11 +63,11 @@ int main(int argc, char **argv) {
 
     // producer- and consumer threads
     pthread_create(&prod_thread, NULL, producer, NULL);
-    pthread_create(&prod_thread, NULL, consumer, NULL);
+    pthread_create(&cons_thread, NULL, consumer, NULL);
 
     // join the threads
     pthread_join(prod_thread, NULL);
-    pthread_join(prod_thread, NULL);
+    pthread_join(cons_thread, NULL);
 
     printf("--------------\n");
 
